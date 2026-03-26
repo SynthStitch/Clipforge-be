@@ -1,0 +1,292 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// USERS
+// ============================================================
+model User {
+  id          String    @id @default(uuid()) @db.Uuid
+  email       String    @unique
+  password    String    // bcrypt hashed — backend-only auth
+  fullName    String?   @map("full_name")
+  avatarUrl   String?   @map("avatar_url")
+  plan        String    @default("free") // free | pro | enterprise
+  onboardedAt DateTime? @map("onboarded_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  connectedAccounts ConnectedAccount[]
+  accountSnapshots  AccountSnapshot[]
+  videos            Video[]
+  extractedEntities ExtractedEntity[]
+  creativeBriefs    CreativeBrief[]
+  recommendations   Recommendation[]
+  generatedAssets   GeneratedAsset[]
+  ingestionLogs     IngestionLog[]
+
+  @@map("users")
+}
+
+// ============================================================
+// CONNECTED ACCOUNTS (TikTok OAuth tokens)
+// ============================================================
+model ConnectedAccount {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  platform       String    @default("tiktok") // tiktok | instagram
+  platformUid    String    @map("platform_uid")
+  username       String?
+  displayName    String?   @map("display_name")
+  avatarUrl      String?   @map("avatar_url")
+  accessToken    String    @map("access_token")
+  refreshToken   String?   @map("refresh_token")
+  tokenExpiresAt DateTime? @map("token_expires_at") @db.Timestamptz
+  scopes         String[]
+  isActive       Boolean   @default(true) @map("is_active")
+  connectedAt    DateTime  @default(now()) @map("connected_at") @db.Timestamptz
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountSnapshots AccountSnapshot[]
+  videos           Video[]
+  creativeBriefs   CreativeBrief[]
+  ingestionLogs    IngestionLog[]
+
+  @@unique([userId, platform, platformUid])
+  @@index([userId])
+  @@map("connected_accounts")
+}
+
+// ============================================================
+// ACCOUNT SNAPSHOTS (point-in-time profile metrics)
+// ============================================================
+model AccountSnapshot {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  accountId      String   @map("account_id") @db.Uuid
+  followerCount  Int?     @map("follower_count")
+  followingCount Int?     @map("following_count")
+  videoCount     Int?     @map("video_count")
+  likeCount      BigInt?  @map("like_count")
+  bioText        String?  @map("bio_text")
+  capturedAt     DateTime @default(now()) @map("captured_at") @db.Timestamptz
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account ConnectedAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([userId, capturedAt(sort: Desc)])
+  @@index([accountId, capturedAt(sort: Desc)])
+  @@map("account_snapshots")
+}
+
+// ============================================================
+// VIDEOS
+// ============================================================
+model Video {
+  id                   String    @id @default(uuid()) @db.Uuid
+  userId               String    @map("user_id") @db.Uuid
+  accountId            String    @map("account_id") @db.Uuid
+  platformVideoId      String    @map("platform_video_id")
+  caption              String?
+  hashtags             String[]
+  durationSeconds      Decimal?  @map("duration_seconds") @db.Decimal(8, 2)
+  thumbnailUrl         String?   @map("thumbnail_url")
+  videoUrl             String?   @map("video_url")
+  postedAt             DateTime? @map("posted_at") @db.Timestamptz
+  formatTag            String?   @map("format_tag")
+  // length_bucket is a generated column in Postgres — read-only here
+  lengthBucket         String?   @map("length_bucket")
+  // Denormalized latest metrics (synced by Postgres trigger)
+  latestViews          BigInt    @default(0) @map("latest_views")
+  latestLikes          BigInt    @default(0) @map("latest_likes")
+  latestComments       BigInt    @default(0) @map("latest_comments")
+  latestShares         BigInt    @default(0) @map("latest_shares")
+  latestSaves          BigInt    @default(0) @map("latest_saves")
+  latestEngagementRate Decimal   @default(0) @map("latest_engagement_rate") @db.Decimal(10, 8)
+  metricsUpdatedAt     DateTime? @map("metrics_updated_at") @db.Timestamptz
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  user             User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account          ConnectedAccount        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  metricsSnapshots VideoMetricsSnapshot[]
+  comments         Comment[]
+
+  @@unique([accountId, platformVideoId])
+  @@index([userId])
+  @@index([accountId])
+  @@index([postedAt(sort: Desc)])
+  @@index([formatTag])
+  @@index([userId, latestEngagementRate(sort: Desc)])
+  @@index([userId, latestViews(sort: Desc)])
+  @@map("videos")
+}
+
+// ============================================================
+// VIDEO METRICS SNAPSHOTS
+// ============================================================
+model VideoMetricsSnapshot {
+  id             String   @id @default(uuid()) @db.Uuid
+  videoId        String   @map("video_id") @db.Uuid
+  views          BigInt   @default(0)
+  likes          BigInt   @default(0)
+  comments       BigInt   @default(0)
+  shares         BigInt   @default(0)
+  saves          BigInt   @default(0)
+  // engagement_rate is a generated column in Postgres — read-only
+  engagementRate Decimal? @map("engagement_rate") @db.Decimal(10, 8)
+  capturedAt     DateTime @default(now()) @map("captured_at") @db.Timestamptz
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([videoId, capturedAt(sort: Desc)])
+  @@map("video_metrics_snapshots")
+}
+
+// ============================================================
+// COMMENTS
+// ============================================================
+model Comment {
+  id                String    @id @default(uuid()) @db.Uuid
+  videoId           String    @map("video_id") @db.Uuid
+  platformCommentId String?   @map("platform_comment_id")
+  commentText       String    @map("comment_text")
+  authorHandle      String?   @map("author_handle")
+  authorUid         String?   @map("author_uid")
+  likeCount         Int       @default(0) @map("like_count")
+  isReply           Boolean   @default(false) @map("is_reply")
+  parentCommentId   String?   @map("parent_comment_id") @db.Uuid
+  postedAt          DateTime? @map("posted_at") @db.Timestamptz
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  video         Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  parentComment Comment? @relation("CommentReplies", fields: [parentCommentId], references: [id])
+  replies       Comment[] @relation("CommentReplies")
+
+  @@unique([videoId, platformCommentId])
+  @@index([videoId])
+  @@map("comments")
+}
+
+// ============================================================
+// EXTRACTED ENTITIES
+// ============================================================
+model ExtractedEntity {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  sourceType  String   @map("source_type") // comment | caption | bio | product_link
+  sourceId    String   @map("source_id") @db.Uuid
+  entityType  String   @map("entity_type") // product_mention | objection | desire | question | keyword | brand | price_point
+  entityValue String   @map("entity_value")
+  confidence  Decimal  @default(1.0) @db.Decimal(4, 3)
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([entityType])
+  @@index([sourceType, sourceId])
+  @@map("extracted_entities")
+}
+
+// ============================================================
+// CREATIVE BRIEFS
+// ============================================================
+model CreativeBrief {
+  id        String  @id @default(uuid()) @db.Uuid
+  userId    String  @map("user_id") @db.Uuid
+  accountId String  @map("account_id") @db.Uuid
+  version   Int     @default(1)
+  briefJson Json    @map("brief_json")
+  isCurrent Boolean @default(true) @map("is_current")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account         ConnectedAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  recommendations Recommendation[]
+  generatedAssets GeneratedAsset[]
+
+  @@index([userId, isCurrent, createdAt(sort: Desc)])
+  @@index([accountId, isCurrent])
+  @@map("creative_briefs")
+}
+
+// ============================================================
+// RECOMMENDATIONS
+// ============================================================
+model Recommendation {
+  id                 String   @id @default(uuid()) @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  creativeBriefId    String?  @map("creative_brief_id") @db.Uuid
+  recommendationJson Json     @map("recommendation_json")
+  isDismissed        Boolean  @default(false) @map("is_dismissed")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creativeBrief CreativeBrief? @relation(fields: [creativeBriefId], references: [id], onDelete: SetNull)
+  generatedAssets GeneratedAsset[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("recommendations")
+}
+
+// ============================================================
+// GENERATED ASSETS
+// ============================================================
+model GeneratedAsset {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  creativeBriefId  String?   @map("creative_brief_id") @db.Uuid
+  recommendationId String?   @map("recommendation_id") @db.Uuid
+  assetType        String    @map("asset_type") // script | voiceover | avatar_video | visual_scene | shot_list | full_package
+  contentBranch    String?   @map("content_branch") // faceless_affiliate | avatar_explainer | product_demo_hybrid
+  provider         String?   // elevenlabs | heygen | higgsfield | grok_imagine | llm
+  status           String    @default("pending") // pending | processing | completed | failed | cancelled
+  inputPayload     Json      @default("{}") @map("input_payload")
+  outputUrl        String?   @map("output_url")
+  outputMetadata   Json      @default("{}") @map("output_metadata")
+  providerJobId    String?   @map("provider_job_id")
+  errorMessage     String?   @map("error_message")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  completedAt      DateTime? @map("completed_at") @db.Timestamptz
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creativeBrief  CreativeBrief?  @relation(fields: [creativeBriefId], references: [id], onDelete: SetNull)
+  recommendation Recommendation? @relation(fields: [recommendationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([creativeBriefId])
+  @@index([status])
+  @@index([provider, status])
+  @@map("generated_assets")
+}
+
+// ============================================================
+// INGESTION LOG
+// ============================================================
+model IngestionLog {
+  id                 String    @id @default(uuid()) @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
+  accountId          String    @map("account_id") @db.Uuid
+  runType            String    @map("run_type") // full_sync | incremental | manual_refresh
+  status             String    @default("started") // started | completed | failed
+  videosFetched      Int       @default(0) @map("videos_fetched")
+  commentsFetched    Int       @default(0) @map("comments_fetched")
+  entitiesExtracted  Int       @default(0) @map("entities_extracted")
+  errorMessage       String?   @map("error_message")
+  startedAt          DateTime  @default(now()) @map("started_at") @db.Timestamptz
+  completedAt        DateTime? @map("completed_at") @db.Timestamptz
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account ConnectedAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startedAt(sort: Desc)])
+  @@map("ingestion_log")
+}
