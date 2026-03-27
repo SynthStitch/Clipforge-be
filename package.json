@@ -1,7 +1,7 @@
 {
-  "name": "postflow-be",
+  "name": "clipforge-be",
   "version": "1.0.0",
-  "description": "PostFlow Backend — TikTok Analytics & Content Recommendation API",
+  "description": "ClipForge Backend — TikTok Analytics & Content Recommendation API",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",

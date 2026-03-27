@@ -4,6 +4,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 import { env } from "./config/env";
 import { errorHandler } from "./middleware/errorHandler";
+import { apiLimiter } from "./middleware/rateLimit";
 
 // Route imports
 import authRoutes from "./routes/auth.routes";
@@ -23,6 +24,7 @@ app.use(helmet());
 app.use(cors({ origin: env.frontendUrl, credentials: true }));
 app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
 app.use(express.json());
+app.use("/api", apiLimiter);
 
 // --- Routes ---
 app.use("/api/auth", authRoutes);
@@ -45,7 +47,7 @@ app.use(errorHandler);
 
 // --- Start ---
 app.listen(env.port, () => {
-  console.log(`PostFlow API running on port ${env.port} [${env.nodeEnv}]`);
+  console.log(`ClipForge API running on port ${env.port} [${env.nodeEnv}]`);
 });
 
 export default app;

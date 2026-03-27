@@ -6,7 +6,14 @@ const TIKTOK_AUTH_URL = "https://www.tiktok.com/v2/auth/authorize/";
 const TIKTOK_TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/";
 const TIKTOK_USER_INFO_URL = "https://open.tiktokapis.com/v2/user/info/";
 
-const SCOPES = ["user.info.basic", "user.info.profile", "user.info.stats", "video.list"].join(",");
+const SCOPES = [
+  "user.info.basic",     // open_id, avatar, display_name
+  "user.info.profile",   // bio, username
+  "user.info.stats",     // follower/following/likes/video counts
+  "video.list",          // video metadata (caption, cover, duration)
+  "video.insights",      // per-video views, likes, comments, shares (requires app review)
+  "comment.list",        // video comments for NLP entity extraction (requires app review)
+].join(",");
 
 interface TikTokTokenResponse {
   access_token: string;

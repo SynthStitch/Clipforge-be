@@ -14,6 +14,7 @@ const envSchema = z.object({
   TIKTOK_REDIRECT_URI: z.string().default(""),
   N8N_CREATOR_INTELLIGENCE_WEBHOOK: z.string().default(""),
   N8N_ASSET_GENERATION_WEBHOOK: z.string().default(""),
+  N8N_WEBHOOK_SECRET: z.string().default(""),
   FRONTEND_URL: z.string().url().default("http://localhost:5173"),
 });
 
@@ -36,5 +37,6 @@ export const env = {
   tiktokRedirectUri: parsed.data.TIKTOK_REDIRECT_URI,
   n8nCreatorIntelligenceWebhook: parsed.data.N8N_CREATOR_INTELLIGENCE_WEBHOOK,
   n8nAssetGenerationWebhook: parsed.data.N8N_ASSET_GENERATION_WEBHOOK,
+  n8nWebhookSecret: parsed.data.N8N_WEBHOOK_SECRET,
   frontendUrl: parsed.data.FRONTEND_URL,
 } as const;

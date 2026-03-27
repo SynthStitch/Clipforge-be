@@ -1,5 +1,6 @@
 import prisma from "../config/database";
 import { formatCount, formatEngagement, computeMomentumScore } from "../lib/formatters";
+import { getMomentumBaseline } from "../lib/momentumCache";
 
 export async function getDashboardMetrics(userId: string) {
   const [videoCount, videos, snapshot] = await Promise.all([
@@ -15,10 +16,10 @@ export async function getDashboardMetrics(userId: string) {
   ]);
 
   // Compute averages
-  const totalViews = videos.reduce((sum, v) => sum + Number(v.latestViews), 0);
-  const avgEngagement = videos.length > 0
-    ? videos.reduce((sum, v) => sum + Number(v.latestEngagementRate), 0) / videos.length
-    : 0;
+  const avgEngagement =
+    videos.length > 0
+      ? videos.reduce((sum, v) => sum + Number(v.latestEngagementRate), 0) / videos.length
+      : 0;
 
   // Best performing video
   const bestVideo = await prisma.video.findFirst({
@@ -38,6 +39,20 @@ export async function getDashboardMetrics(userId: string) {
     ? ((videoCount - prevSnapshot.videoCount) / prevSnapshot.videoCount) * 100
     : 0;
 
+  // Compute account-level momentum from cached baseline
+  const baseline = await getMomentumBaseline(userId);
+  const recentVideo = await prisma.video.findFirst({
+    where: { userId, postedAt: { not: null } },
+    orderBy: { postedAt: "desc" },
+    select: { latestViews: true, postedAt: true },
+  });
+  let momentumValue = 50;
+  if (recentVideo?.postedAt) {
+    const hoursAlive = Math.max(1, (Date.now() - recentVideo.postedAt.getTime()) / 3600000);
+    const vph = Number(recentVideo.latestViews) / hoursAlive;
+    momentumValue = computeMomentumScore(vph, baseline);
+  }
+
   return {
     metrics: [
       {
@@ -49,7 +64,7 @@ export async function getDashboardMetrics(userId: string) {
       {
         title: "Average Engagement",
         value: formatEngagement(avgEngagement),
-        trend: 0, // computed from historical comparison
+        trend: 0,
         icon: "Activity",
       },
       {
@@ -60,7 +75,7 @@ export async function getDashboardMetrics(userId: string) {
       },
       {
         title: "Current Momentum",
-        value: "—",
+        value: String(momentumValue),
         trend: 0,
         icon: "TrendingUp",
       },
@@ -107,21 +122,9 @@ export async function getRecentVideos(userId: string, limit = 4) {
     },
   });
 
-  // Compute baseline views per hour for momentum scoring
-  const allVideos = await prisma.video.findMany({
-    where: { userId },
-    select: { latestViews: true, postedAt: true },
-  });
+  // Use cached baseline instead of loading all videos
+  const baseline = await getMomentumBaseline(userId);
   const now = Date.now();
-  const velocities = allVideos
-    .filter((v) => v.postedAt)
-    .map((v) => {
-      const hoursAlive = Math.max(1, (now - v.postedAt!.getTime()) / 3600000);
-      return Number(v.latestViews) / hoursAlive;
-    });
-  const baseline = velocities.length > 0
-    ? velocities.reduce((a, b) => a + b, 0) / velocities.length
-    : 1;
 
   return videos.map((v) => {
     const hoursAlive = v.postedAt ? Math.max(1, (now - v.postedAt.getTime()) / 3600000) : 1;
@@ -168,13 +171,18 @@ export async function getActiveRecommendations(userId: string, limit = 3) {
 
 export async function getFormatInsights(userId: string) {
   // Query format performance from the materialized view via raw SQL
-  const formatPerf = (await prisma.$queryRawUnsafe(`
+  const formatPerf = (await prisma
+    .$queryRawUnsafe(
+      `
     SELECT format_tag, video_count, avg_engagement, median_engagement, peak_engagement
     FROM mv_format_performance
     WHERE user_id = $1::uuid
     ORDER BY avg_engagement DESC
     LIMIT 4
-  `, userId).catch(() => [])) as Array<{
+  `,
+      userId,
+    )
+    .catch(() => [])) as Array<{
     format_tag: string;
     video_count: number;
     avg_engagement: number;
@@ -193,38 +201,18 @@ export async function getFormatInsights(userId: string) {
       take: 4,
     });
 
-    const descriptions: Record<string, string> = {
-      tutorial: "Step-by-step guides explaining a specific process or tool.",
-      product_demo: "Showcasing physical or digital products in action.",
-      story: "Talking head videos with personal anecdotes or background stories.",
-      reaction: "Duets or stitches reacting to trending topics or other videos.",
-      faceless_demo: "Faceless product demos with text overlays and voiceover.",
-      listicle: "List-format content like 'Top 5' or 'Things you need'.",
-      talking_head: "Direct-to-camera commentary or opinion pieces.",
-    };
-
     return videos.map((v, i) => ({
       format: v.formatTag || "Unknown",
-      description: descriptions[v.formatTag || ""] || "Content format analysis.",
+      description: FORMAT_DESCRIPTIONS[v.formatTag || ""] || "Content format analysis.",
       avgEngagement: formatEngagement(Number(v._avg.latestEngagementRate || 0)),
       confidence: Math.max(30, 95 - i * 15),
-      trend: i < 2 ? "up" : i === 2 ? "stable" : "down",
+      trend: i < 2 ? "up" : i === 2 ? "stable" : ("down" as const),
     }));
   }
 
-  const descriptions: Record<string, string> = {
-    tutorial: "Step-by-step guides explaining a specific process or tool.",
-    product_demo: "Showcasing physical or digital products in action.",
-    story: "Talking head videos with personal anecdotes or background stories.",
-    reaction: "Duets or stitches reacting to trending topics or other videos.",
-    faceless_demo: "Faceless product demos with text overlays and voiceover.",
-    listicle: "List-format content like 'Top 5' or 'Things you need'.",
-    talking_head: "Direct-to-camera commentary or opinion pieces.",
-  };
-
   return formatPerf.map((f, i) => ({
     format: f.format_tag,
-    description: descriptions[f.format_tag] || "Content format analysis.",
+    description: FORMAT_DESCRIPTIONS[f.format_tag] || "Content format analysis.",
     avgEngagement: formatEngagement(Number(f.avg_engagement)),
     confidence: Math.max(30, 95 - i * 15),
     trend: (i < 2 ? "up" : i === 2 ? "stable" : "down") as "up" | "stable" | "down",
@@ -277,3 +265,15 @@ export async function getMomentumChart(userId: string) {
     })),
   };
 }
+
+// --- Constants ---
+
+const FORMAT_DESCRIPTIONS: Record<string, string> = {
+  tutorial: "Step-by-step guides explaining a specific process or tool.",
+  product_demo: "Showcasing physical or digital products in action.",
+  story: "Talking head videos with personal anecdotes or background stories.",
+  reaction: "Duets or stitches reacting to trending topics or other videos.",
+  faceless_demo: "Faceless product demos with text overlays and voiceover.",
+  listicle: "List-format content like 'Top 5' or 'Things you need'.",
+  talking_head: "Direct-to-camera commentary or opinion pieces.",
+};

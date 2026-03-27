@@ -1,8 +1,10 @@
 import { Request, Response, Router } from "express";
 import { z } from "zod";
-import { env } from "../config/env";
 import { authenticate } from "../middleware/auth";
+import { asyncHandler } from "../lib/asyncHandler";
 import { validate } from "../middleware/validate";
+import { createOAuthState, consumeOAuthState } from "../lib/oauthState";
+import { env } from "../config/env";
 import * as tiktokService from "../services/tiktok.service";
 
 const router = Router();
@@ -11,44 +13,59 @@ const disconnectSchema = z.object({
   accountId: z.string().uuid(),
 });
 
-router.post("/tiktok", authenticate, async (req: Request, res: Response) => {
-  const state = Buffer.from(JSON.stringify({ userId: req.user!.userId })).toString("base64url");
-  const authUrl = tiktokService.getAuthorizationUrl(state);
-  res.json({ authUrl });
-});
+// POST /api/oauth/tiktok — initiate TikTok OAuth flow
+router.post(
+  "/tiktok",
+  authenticate,
+  asyncHandler(async (req: Request, res: Response) => {
+    const state = createOAuthState(req.user!.userId);
+    const authUrl = tiktokService.getAuthorizationUrl(state);
+    res.json({ authUrl });
+  }),
+);
 
-router.get("/tiktok/callback", async (req: Request, res: Response) => {
-  const { code, state, error } = req.query;
+// GET /api/oauth/tiktok/callback — handle TikTok OAuth callback
+router.get(
+  "/tiktok/callback",
+  asyncHandler(async (req: Request, res: Response) => {
+    const { code, state, error } = req.query;
 
-  if (error) {
-    res.redirect(`${env.frontendUrl}/dashboard/settings?error=oauth_denied`);
-    return;
-  }
+    if (error) {
+      res.redirect(`${env.frontendUrl}/dashboard/settings?error=oauth_denied`);
+      return;
+    }
 
-  if (!code || !state) {
-    res.redirect(`${env.frontendUrl}/dashboard/settings?error=missing_params`);
-    return;
-  }
+    if (!code || !state) {
+      res.redirect(`${env.frontendUrl}/dashboard/settings?error=missing_params`);
+      return;
+    }
 
-  try {
-    const decoded = JSON.parse(Buffer.from(state as string, "base64url").toString());
-    await tiktokService.connectAccount(decoded.userId, code as string);
-    res.redirect(`${env.frontendUrl}/dashboard/settings?connected=tiktok`);
-  } catch (err) {
-    console.error("TikTok OAuth callback error:", err);
-    res.redirect(`${env.frontendUrl}/dashboard/settings?error=oauth_failed`);
-  }
-});
+    const userId = consumeOAuthState(state as string);
+    if (!userId) {
+      res.redirect(`${env.frontendUrl}/dashboard/settings?error=invalid_state`);
+      return;
+    }
 
+    try {
+      await tiktokService.connectAccount(userId, code as string);
+      res.redirect(`${env.frontendUrl}/dashboard/settings?connected=tiktok`);
+    } catch (err) {
+      console.error("TikTok OAuth callback error:", err);
+      res.redirect(`${env.frontendUrl}/dashboard/settings?error=oauth_failed`);
+    }
+  }),
+);
+
+// POST /api/oauth/tiktok/disconnect
 router.post(
   "/tiktok/disconnect",
   authenticate,
   validate(disconnectSchema),
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const { accountId } = req.body;
     const result = await tiktokService.disconnectAccount(req.user!.userId, accountId);
     res.json(result);
-  },
+  }),
 );
 
 export default router;
