@@ -1,4 +1,4 @@
-# ClipForge / PostFlow — Project Context
+# ClipForge — Project Context
 
 TikTok analytics and AI content generation platform. Two repos in this monorepo:
 - `ClipForge/` — React frontend (Vite, Tailwind, Radix UI)
@@ -32,14 +32,14 @@ Orchestration handled by n8n workflows hosted at `y-3.online`.
 
 ## n8n Workflows
 
-### PostFlow — Creator Intelligence (`ho0lFmZyvnF7eJHp`)
-- Webhook path: `POST /webhook/postflow-refresh`
+### ClipForge — Creator Intelligence (`ho0lFmZyvnF7eJHp`)
+- Webhook path: `POST /webhook/clipforge-refresh`
 - Triggered by: `POST /api/sync/refresh` from the backend
 - Payload: `{ user_id, account_id, trigger: "manual_refresh" }`
 - Flow: Load User → Load TikTok Tokens → Validate/Refresh Token → Fetch TikTok Profile + Videos → Loop Videos → Fetch Metrics → Upsert Videos + Snapshots → Fetch Comments → NLP Entity Extraction (Claude) → Compute Analytics → LLM Reasoning (Claude) → Build Creative Brief → Save Brief + Recommendations → Log Ingestion
 
-### PostFlow — Asset Generation (`THy8rnMTfAXQ47Bl`)
-- Webhook path: `POST /webhook/postflow-generate`
+### ClipForge — Asset Generation (`THy8rnMTfAXQ47Bl`)
+- Webhook path: `POST /webhook/clipforge-generate`
 - Triggered by: `POST /api/sync/generate` from the backend
 - Payload: `{ user_id, brief_id, recommendation_id, trigger: "manual" }`
 - Flow: Load Creative Brief → Load User Prefs → Content Planning (Claude) → Parse Plan → Route by Content Type:

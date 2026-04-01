@@ -17,7 +17,12 @@ model User {
   fullName    String?   @map("full_name")
   avatarUrl   String?   @map("avatar_url")
   plan        String    @default("free") // free | pro | enterprise
+  privacyMode String    @default("balanced") @map("privacy_mode")
+  analyticsOptIn Boolean @default(true) @map("analytics_opt_in")
+  marketingOptIn Boolean @default(false) @map("marketing_opt_in")
+  dataRetentionDays Int @default(90) @map("data_retention_days")
   onboardedAt DateTime? @map("onboarded_at") @db.Timestamptz
+  lastLoginAt DateTime? @map("last_login_at") @db.Timestamptz
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -289,4 +294,273 @@ model IngestionLog {
 
   @@index([userId, startedAt(sort: Desc)])
   @@map("ingestion_log")
+}
+
+model NicheIntelligence {
+  id                  String    @id @default(uuid()) @db.Uuid
+  nicheName           String    @map("niche_name")
+  hashtag             String?
+  tiktokShopCategory  String?   @map("tiktok_shop_category")
+  hashtagVideoCount   BigInt    @default(0) @map("hashtag_video_count")
+  hashtagViews7d      BigInt    @default(0) @map("hashtag_views_7d")
+  shopProductCount    Int       @default(0) @map("shop_product_count")
+  avgProductPrice     Decimal?  @db.Decimal(12, 2) @map("avg_product_price")
+  estimatedGmv        Decimal?  @db.Decimal(14, 2) @map("estimated_gmv")
+  activeCreatorCount  Int       @default(0) @map("active_creator_count")
+  activeSellerCount   Int       @default(0) @map("active_seller_count")
+  topCreatorFollowers BigInt    @default(0) @map("top_creator_followers")
+  saturationScore     Decimal   @default(0) @db.Decimal(5, 2) @map("saturation_score")
+  opportunityScore    Decimal   @default(0) @db.Decimal(5, 2) @map("opportunity_score")
+  revenuePerCreator   Decimal   @default(0) @db.Decimal(12, 2) @map("revenue_per_creator")
+  demandSupplyRatio   Decimal   @default(0) @db.Decimal(10, 2) @map("demand_supply_ratio")
+  creatorCountWow     Decimal?  @db.Decimal(7, 2) @map("creator_count_wow")
+  productCountWow     Decimal?  @db.Decimal(7, 2) @map("product_count_wow")
+  gmvWow              Decimal?  @db.Decimal(7, 2) @map("gmv_wow")
+  isOpportunity       Boolean   @default(false) @map("is_opportunity")
+  opportunityTier     String?   @map("opportunity_tier")
+  rawHashtagResponse  Json?     @map("raw_hashtag_response")
+  rawShopResponse     Json?     @map("raw_shop_response")
+  scanDate            DateTime  @map("scan_date") @db.Date
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  videoTranscripts VideoTranscript[]
+
+  @@unique([nicheName, scanDate])
+  @@index([nicheName])
+  @@index([scanDate(sort: Desc)])
+  @@index([opportunityScore(sort: Desc)])
+  @@map("niche_intelligence")
+}
+
+model VideoTranscript {
+  id                       String             @id @default(uuid()) @db.Uuid
+  videoUrl                 String             @unique @map("video_url")
+  platform                 String             @default("tiktok")
+  niche                    String?
+  creatorHandle            String?            @map("creator_handle")
+  transcript               String?
+  wordCount                Int                @default(0) @map("word_count")
+  estimatedDurationSeconds Int                @default(0) @map("estimated_duration_seconds")
+  hook                     String?
+  hookType                 String?            @map("hook_type")
+  cta                      String?
+  ctaType                  String?            @map("cta_type")
+  scriptStructure          String?            @map("script_structure")
+  tone                     String?
+  productMentions          String?            @map("product_mentions")
+  keyPhrases               String?            @map("key_phrases")
+  contentSummary           String?            @map("content_summary")
+  rawDeepseekResponse      Json?              @map("raw_deepseek_response")
+  sourceNicheScanId        String?            @map("source_niche_scan_id") @db.Uuid
+  sourceNicheScan          NicheIntelligence? @relation(fields: [sourceNicheScanId], references: [id], onDelete: SetNull)
+  analyzedAt               DateTime           @default(now()) @map("analyzed_at")
+  createdAt                DateTime           @default(now()) @map("created_at")
+  updatedAt                DateTime           @updatedAt @map("updated_at")
+
+  @@index([niche])
+  @@index([hookType])
+  @@index([scriptStructure])
+  @@index([analyzedAt(sort: Desc)])
+  @@map("video_transcripts")
+}
+
+model NicheDiscovery {
+  id                   String    @id @default(uuid()) @db.Uuid
+  nicheName            String    @map("niche_name")
+  hashtag              String?
+  source               String    @default("amazon_movers")
+  sourceCategory       String?   @map("source_category")
+  sourceProduct        String?   @map("source_product")
+  desireHealth         Decimal   @default(0) @db.Decimal(5, 2) @map("desire_health")
+  desireWealth         Decimal   @default(0) @db.Decimal(5, 2) @map("desire_wealth")
+  desireSex            Decimal   @default(0) @db.Decimal(5, 2) @map("desire_sex")
+  desireStatus         Decimal   @default(0) @db.Decimal(5, 2) @map("desire_status")
+  desireFear           Decimal   @default(0) @db.Decimal(5, 2) @map("desire_fear")
+  desireIdentity       Decimal   @default(0) @db.Decimal(5, 2) @map("desire_identity")
+  desirePullScore      Decimal   @default(0) @db.Decimal(5, 2) @map("desire_pull_score")
+  dominantDesire       String?   @map("dominant_desire")
+  reviewCountAnalyzed  Int       @default(0) @map("review_count_analyzed")
+  reviewPassionScore   Decimal   @default(0) @db.Decimal(5, 2) @map("review_passion_score")
+  avgPricePoint        Decimal?  @db.Decimal(12, 2) @map("avg_price_point")
+  impulseBuyScore      Decimal   @default(0) @db.Decimal(5, 2) @map("impulse_buy_score")
+  convertibilityScore  Decimal   @default(0) @db.Decimal(5, 2) @map("convertibility_score")
+  opportunityTier      String?   @map("opportunity_tier")
+  tiktokInfrastructure Decimal   @default(0) @db.Decimal(5, 2) @map("tiktok_infrastructure")
+  tiktokProductCount   Int       @default(0) @map("tiktok_product_count")
+  tiktokSellerCount    Int       @default(0) @map("tiktok_seller_count")
+  addedToWatchlist     Boolean   @default(false) @map("added_to_watchlist")
+  discoveredAt         DateTime  @default(now()) @map("discovered_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  @@unique([nicheName, source])
+  @@index([convertibilityScore(sort: Desc)])
+  @@index([opportunityTier])
+  @@index([discoveredAt(sort: Desc)])
+  @@map("niche_discoveries")
+}
+
+// ============================================================
+// CREATOR PROFILES (per-niche creator intelligence)
+// ============================================================
+model CreatorProfile {
+  id                 String    @id @default(uuid()) @db.Uuid
+  username           String
+  displayName        String?   @map("display_name")
+  nicheName          String    @map("niche_name")
+  hashtag            String?
+  followers          Int       @default(0)
+  verified           Boolean   @default(false)
+  avgViews           BigInt    @default(0) @map("avg_views")
+  engagementRatePct  Decimal   @default(0) @db.Decimal(7, 4) @map("engagement_rate_pct")
+  postingFreqPerWeek Decimal   @default(0) @db.Decimal(5, 2) @map("posting_freq_per_week")
+  bestVideoViews     BigInt    @default(0) @map("best_video_views")
+  totalViewsRecent   BigInt    @default(0) @map("total_views_recent")
+  totalLikesRecent   BigInt    @default(0) @map("total_likes_recent")
+  scannedAt          DateTime  @default(now()) @map("scanned_at") @db.Timestamptz
+
+  @@unique([username, nicheName, scannedAt])
+  @@index([nicheName])
+  @@index([scannedAt(sort: Desc)])
+  @@index([avgViews(sort: Desc)])
+  @@map("creator_profiles")
+}
+
+// ============================================================
+// COMMENT SENTIMENT (per-video comment analysis)
+// ============================================================
+model CommentSentiment {
+  id                    String    @id @default(uuid()) @db.Uuid
+  videoId               String?   @map("video_id")
+  videoUrl              String    @unique @map("video_url")
+  niche                 String?
+  totalComments         Int       @default(0) @map("total_comments")
+  purchaseIntentCount   Int       @default(0) @map("purchase_intent_count")
+  purchaseIntentPct     Decimal   @default(0) @db.Decimal(5, 2) @map("purchase_intent_pct")
+  objectionCount        Int       @default(0) @map("objection_count")
+  objectionThemes       String?   @map("objection_themes")
+  socialProofCount      Int       @default(0) @map("social_proof_count")
+  questionThemes        String?   @map("question_themes")
+  emotionalIntensity    Decimal   @default(0) @db.Decimal(5, 2) @map("emotional_intensity")
+  dominantSentiment     String?   @map("dominant_sentiment")
+  topPurchaseComments   String?   @map("top_purchase_comments")
+  topObjections         String?   @map("top_objections")
+  analyzedAt            DateTime  @default(now()) @map("analyzed_at") @db.Timestamptz
+
+  @@index([niche])
+  @@index([analyzedAt(sort: Desc)])
+  @@map("comment_sentiment")
+}
+
+// ============================================================
+// TRENDING SOUNDS (daily trending sound tracking)
+// ============================================================
+model TrendingSound {
+  id                String    @id @default(uuid()) @db.Uuid
+  soundId           String    @map("sound_id")
+  soundTitle        String    @map("sound_title")
+  soundAuthor       String?   @map("sound_author")
+  isOriginal        Boolean   @default(false) @map("is_original")
+  videoCount        Int       @default(0) @map("video_count")
+  totalViews        BigInt    @default(0) @map("total_views")
+  avgViewsPerVideo  BigInt    @default(0) @map("avg_views_per_video")
+  totalLikes        BigInt    @default(0) @map("total_likes")
+  niches            String?
+  commerceRelevance Decimal   @default(0) @db.Decimal(5, 2) @map("commerce_relevance")
+  scannedAt         DateTime  @default(now()) @map("scanned_at") @db.Timestamptz
+
+  @@unique([soundId, scannedAt])
+  @@index([scannedAt(sort: Desc)])
+  @@index([commerceRelevance(sort: Desc)])
+  @@map("trending_sounds")
+}
+
+// ============================================================
+// SHOP SNAPSHOTS (daily competitor shop monitoring)
+// ============================================================
+model ShopSnapshot {
+  id              String    @id @default(uuid()) @db.Uuid
+  shopName        String    @map("shop_name")
+  shopUrl         String?   @map("shop_url")
+  niche           String?
+  productCount    Int       @default(0) @map("product_count")
+  avgPrice        Decimal?  @db.Decimal(12, 2) @map("avg_price")
+  newProducts     Int       @default(0) @map("new_products")
+  priceChangePct  Decimal?  @db.Decimal(7, 2) @map("price_change_pct")
+  hasChanges      Boolean   @default(false) @map("has_changes")
+  topProducts     Json?     @map("top_products")
+  scannedAt       DateTime  @default(now()) @map("scanned_at") @db.Timestamptz
+
+  @@index([shopName, scannedAt(sort: Desc)])
+  @@index([scannedAt(sort: Desc)])
+  @@map("shop_snapshots")
+}
+
+// ============================================================
+// GOLDEN DATASET (regression testing & eval framework)
+// ============================================================
+model GoldenSample {
+  id             String       @id @default(uuid()) @db.Uuid
+  workflowType   String       @map("workflow_type") // niche_intelligence | niche_discovery | video_transcriber
+  label          String       // e.g. "supplements - expected low saturation"
+  difficulty     String       @default("medium") @map("difficulty") // easy | medium | hard | adversarial
+  tags           String[]
+  inputData      Json         @map("input_data")
+  expectedOutput Json         @map("expected_output")
+  tolerances     Json?        // { field: { min, max } } for numeric range checks
+  sourceRunId    String?      @map("source_run_id") // n8n execution ID this was promoted from
+  addedBy        String       @default("system") @map("added_by")
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  evalResults    EvalResult[]
+
+  @@index([workflowType, active])
+  @@index([createdAt(sort: Desc)])
+  @@map("golden_samples")
+}
+
+model EvalResult {
+  id             String       @id @default(uuid()) @db.Uuid
+  goldenSampleId String       @map("golden_sample_id") @db.Uuid
+  goldenSample   GoldenSample @relation(fields: [goldenSampleId], references: [id], onDelete: Cascade)
+  runId          String       @map("run_id") // groups results from one eval run
+  actualOutput   Json         @map("actual_output")
+  passed         Boolean
+  scores         Json?        // { field: { expected, actual, passed } }
+  failReasons    String[]     @map("fail_reasons")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([runId])
+  @@index([goldenSampleId, createdAt(sort: Desc)])
+  @@map("eval_results")
+}
+
+// ============================================================
+// CONTENT PERFORMANCE (posted video performance tracking)
+// ============================================================
+model ContentPerformance {
+  id                   String    @id @default(uuid()) @db.Uuid
+  videoId              String    @unique @map("video_id")
+  videoUrl             String?   @map("video_url")
+  niche                String?
+  contentBriefId       String?   @map("content_brief_id")
+  hookTypeUsed         String?   @map("hook_type_used")
+  structureUsed        String?   @map("structure_used")
+  views24h             BigInt    @default(0) @map("views_24h")
+  likes24h             BigInt    @default(0) @map("likes_24h")
+  comments24h          BigInt    @default(0) @map("comments_24h")
+  shares24h            BigInt    @default(0) @map("shares_24h")
+  engagementRate24h    Decimal   @default(0) @db.Decimal(10, 8) @map("engagement_rate_24h")
+  viewsVsAvgPct        Decimal?  @db.Decimal(7, 2) @map("views_vs_avg_pct")
+  engagementVsAvgPct   Decimal?  @db.Decimal(7, 2) @map("engagement_vs_avg_pct")
+  aboveAverage         Boolean   @default(false) @map("above_average")
+  postedAt             DateTime? @map("posted_at") @db.Timestamptz
+  measuredAt           DateTime  @default(now()) @map("measured_at") @db.Timestamptz
+
+  @@index([niche])
+  @@index([measuredAt(sort: Desc)])
+  @@map("content_performance")
 }

@@ -44,9 +44,19 @@ router.post(
 router.post(
   "/refresh",
   authenticate,
+  authLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const result = await authService.refreshToken(req.user!.userId);
     res.json(result);
+  }),
+);
+
+router.get(
+  "/me",
+  authenticate,
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = await authService.getCurrentUser(req.user!.userId);
+    res.json({ user });
   }),
 );
 

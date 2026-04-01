@@ -18,7 +18,7 @@ router.post(
   "/tiktok",
   authenticate,
   asyncHandler(async (req: Request, res: Response) => {
-    const state = createOAuthState(req.user!.userId);
+    const state = await createOAuthState(req.user!.userId);
     const authUrl = tiktokService.getAuthorizationUrl(state);
     res.json({ authUrl });
   }),
@@ -40,7 +40,7 @@ router.get(
       return;
     }
 
-    const userId = consumeOAuthState(state as string);
+    const userId = await consumeOAuthState(state as string);
     if (!userId) {
       res.redirect(`${env.frontendUrl}/dashboard/settings?error=invalid_state`);
       return;

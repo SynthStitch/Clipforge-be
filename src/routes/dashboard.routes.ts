@@ -2,10 +2,20 @@ import { Router, Request, Response } from "express";
 import { authenticate } from "../middleware/auth";
 import { asyncHandler } from "../lib/asyncHandler";
 import * as dashboardService from "../services/dashboard.service";
+import * as clipforgeDashboardService from "../services/clipforgeDashboard.service";
 
 const router = Router();
 
 // GET /api/dashboard — full dashboard overview
+router.get(
+  "/summary",
+  authenticate,
+  asyncHandler(async (_req: Request, res: Response) => {
+    const data = await clipforgeDashboardService.getDashboardSummary();
+    res.json(data);
+  }),
+);
+
 router.get(
   "/",
   authenticate,
@@ -30,7 +40,7 @@ router.get(
   "/videos",
   authenticate,
   asyncHandler(async (req: Request, res: Response) => {
-    const limit = parseInt(req.query.limit as string) || 4;
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 4, 1), 50);
     const data = await dashboardService.getRecentVideos(req.user!.userId, limit);
     res.json(data);
   }),

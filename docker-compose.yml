@@ -1,0 +1,12 @@
+services:
+  clipforge-api:
+    build: .
+    container_name: clipforge-api
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    env_file:
+      - .env
+    environment:
+      PORT: 4000
+      NODE_ENV: production

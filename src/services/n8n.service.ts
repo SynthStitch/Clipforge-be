@@ -27,7 +27,7 @@ async function parseWebhookResponse(response: Response) {
 }
 
 /**
- * Trigger Workflow 1: Creator Intelligence
+ * Trigger Workflow 1: ClipForge Intelligence Refresh
  * Kicks off: Load User → TikTok Tokens → Validate/Refresh →
  *   Fetch Profile → Save Snapshot → Fetch Videos → Loop →
  *   Upsert Videos + Metrics → Scrape Comments → NLP Entity Extraction →
@@ -36,7 +36,7 @@ async function parseWebhookResponse(response: Response) {
  */
 export async function triggerCreatorIntelligence(userId: string, accountId: string) {
   if (!env.n8nCreatorIntelligenceWebhook) {
-    throw new AppError(503, "Creator Intelligence webhook not configured");
+    throw new AppError(503, "ClipForge refresh webhook not configured");
   }
 
   const response = await fetch(env.n8nCreatorIntelligenceWebhook, {
@@ -57,7 +57,7 @@ export async function triggerCreatorIntelligence(userId: string, accountId: stri
 }
 
 /**
- * Trigger Workflow 2: Asset Generation
+ * Trigger Workflow 2: ClipForge Asset Generation
  * Kicks off: Load Creative Brief → Load User Preferences →
  *   Content Planning (LLM) → Parse Content Plan →
  *   Route by Content Type:
@@ -72,7 +72,7 @@ export async function triggerAssetGeneration(
   recommendationId?: string,
 ) {
   if (!env.n8nAssetGenerationWebhook) {
-    throw new AppError(503, "Asset Generation webhook not configured");
+    throw new AppError(503, "ClipForge asset generation webhook not configured");
   }
 
   const response = await fetch(env.n8nAssetGenerationWebhook, {

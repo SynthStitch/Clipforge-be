@@ -11,16 +11,18 @@ export class AppError extends Error {
 }
 
 export function errorHandler(err: Error, _req: Request, res: Response, _next: NextFunction): void {
-  console.error(`[Error] ${err.message}`, err.stack);
+  const isProduction = process.env.NODE_ENV === "production";
 
   if (err instanceof AppError) {
+    if (err.statusCode >= 500) {
+      console.error(`[Error] ${err.message}`, isProduction ? "" : err.stack);
+    }
     res.status(err.statusCode).json({ error: err.message });
     return;
   }
 
-  res.status(500).json({
-    error: process.env.NODE_ENV === "production"
-      ? "Internal server error"
-      : err.message,
-  });
+  // Always log unexpected errors, but never include stack in production logs
+  console.error(`[UnhandledError] ${err.message}`, isProduction ? "" : err.stack);
+
+  res.status(500).json({ error: "Internal server error" });
 }

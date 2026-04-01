@@ -32,6 +32,11 @@ export async function login(email: string, password: string) {
     throw new AppError(401, "Invalid credentials");
   }
 
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  });
+
   const token = signToken({ userId: user.id, email: user.email });
   return {
     token,
@@ -56,6 +61,30 @@ export async function refreshToken(userId: string) {
 
   const token = signToken({ userId: user.id, email: user.email });
   return { token, user };
+}
+
+export async function getCurrentUser(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      fullName: true,
+      plan: true,
+      avatarUrl: true,
+      createdAt: true,
+      privacyMode: true,
+      analyticsOptIn: true,
+      marketingOptIn: true,
+      dataRetentionDays: true,
+    },
+  });
+
+  if (!user) {
+    throw new AppError(404, "User not found");
+  }
+
+  return user;
 }
 
 function signToken(payload: AuthPayload): string {

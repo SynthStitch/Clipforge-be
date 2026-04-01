@@ -1,5 +1,6 @@
 import prisma from "../config/database";
 import { env } from "../config/env";
+import { decryptSecret, encryptSecret } from "../lib/crypto";
 import { AppError } from "../middleware/errorHandler";
 
 const TIKTOK_AUTH_URL = "https://www.tiktok.com/v2/auth/authorize/";
@@ -114,8 +115,8 @@ export async function connectAccount(userId: string, code: string) {
       },
     },
     update: {
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
+      accessToken: encryptSecret(tokens.accessToken)!,
+      refreshToken: encryptSecret(tokens.refreshToken) ?? undefined,
       tokenExpiresAt: new Date(Date.now() + tokens.expiresIn * 1000),
       scopes: tokens.scope ? tokens.scope.split(",") : [],
       username: userInfo.username,
@@ -127,8 +128,8 @@ export async function connectAccount(userId: string, code: string) {
       userId,
       platform: "tiktok",
       platformUid: tokens.openId,
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
+      accessToken: encryptSecret(tokens.accessToken)!,
+      refreshToken: encryptSecret(tokens.refreshToken),
       tokenExpiresAt: new Date(Date.now() + tokens.expiresIn * 1000),
       scopes: tokens.scope ? tokens.scope.split(",") : [],
       username: userInfo.username,
@@ -149,6 +150,13 @@ export async function connectAccount(userId: string, code: string) {
   });
 
   return account;
+}
+
+export function readAccountTokens(account: { accessToken: string; refreshToken: string | null }) {
+  return {
+    accessToken: decryptSecret(account.accessToken),
+    refreshToken: decryptSecret(account.refreshToken),
+  };
 }
 
 export async function disconnectAccount(userId: string, accountId: string) {

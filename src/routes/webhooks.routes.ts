@@ -9,7 +9,7 @@ import * as n8nService from "../services/n8n.service";
 
 const router = Router();
 
-// POST /api/sync/refresh — trigger Workflow 1 (Creator Intelligence)
+// POST /api/sync/refresh — trigger ClipForge refresh workflow
 router.post(
   "/refresh",
   authenticate,
@@ -32,7 +32,7 @@ router.post(
   }),
 );
 
-// POST /api/sync/generate — trigger Workflow 2 (Asset Generation)
+// POST /api/sync/generate — trigger ClipForge asset generation workflow
 router.post(
   "/generate",
   authenticate,

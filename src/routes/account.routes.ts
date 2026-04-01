@@ -18,6 +18,13 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(8),
 });
 
+const privacySettingsSchema = z.object({
+  privacyMode: z.enum(["strict", "balanced", "full"]).optional(),
+  analyticsOptIn: z.boolean().optional(),
+  marketingOptIn: z.boolean().optional(),
+  dataRetentionDays: z.number().int().min(7).max(365).optional(),
+});
+
 // GET /api/account/profile — user profile + connected accounts
 router.get(
   "/profile",
@@ -52,6 +59,16 @@ router.post(
       newPassword,
     );
     res.json(result);
+  }),
+);
+
+router.patch(
+  "/privacy",
+  authenticate,
+  validate(privacySettingsSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const data = await accountService.updatePrivacySettings(req.user!.userId, req.body);
+    res.json(data);
   }),
 );
 
