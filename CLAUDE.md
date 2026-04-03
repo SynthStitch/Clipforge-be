@@ -145,6 +145,15 @@ GET  /internal/eval-runs/:runId        — fetch full results of a past eval run
 - [x] Phase 2 models + routes + services for workflows 5-9
 - [x] Golden dataset eval framework: `GoldenSample` + `EvalResult` models, service, 4 internal routes
 - [x] All pushed to `https://github.com/SynthStitch/Clipforge-be.git`
+- [x] Git remote updated from `SynthStitch/PostFlow-be` → `SynthStitch/Clipforge-be`
+
+### 2026-04-02
+- [x] Backend deployed to CT 106 (Docker host, `10.8.8.167`) via `docker compose up -d --build`
+- [x] Fixed TypeScript build errors blocking Docker build:
+  - `z.record()` requires 2 args in this Zod version → `z.record(z.string(), z.unknown())`
+  - Prisma `Json` fields need explicit `as Prisma.InputJsonValue` cast for `Record<string,unknown>`
+  - `req.params[key]` typed as `string | string[]` in this `@types/express` → cast to `string`
+- [x] Backend now running in Docker on isolated home server network
 
 **Note on token encryption:** Prisma stores `access_token` and `refresh_token` as `String` (TEXT). `ENCRYPTION_KEY` env var exists but encryption not yet implemented in `tiktok.service.ts`. Add at the application layer (encrypt before write, decrypt after read) if needed — not at the DB layer.
 
@@ -157,8 +166,9 @@ GET  /internal/eval-runs/:runId        — fetch full results of a past eval run
 1. **Set env vars on CT 888** — add to n8n's docker-compose.yml and restart (see env vars table above)
 2. **Assign Gemini credential** in n8n UI to the Video Transcriber workflow
 3. **Populate Niche Watchlist sheet** with at least 1 test row
-4. **Ensure backend is reachable from CT 888** — test with `curl http://192.168.86.X:4000/health` from CT 888
+4. **Confirm backend reachable from CT 888** — backend is on CT 106 (`10.8.8.167`), n8n is on CT 888; `CLIPFORGE_BACKEND_URL=http://10.8.8.167:4000`
 5. **Manually trigger** ClipForge Niche Intelligence v1 → inspect `Calculate Saturation Score` output to confirm Nimble field paths
+6. **After first good run** → call `POST /internal/golden-samples` to save that output as the first golden record
 
 ### Phase 3 — TikTok Data Service
 
