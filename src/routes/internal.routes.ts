@@ -260,9 +260,9 @@ const goldenSampleSchema = z.object({
   label: z.string().min(1).max(255),
   difficulty: z.enum(["easy", "medium", "hard", "adversarial"]).optional(),
   tags: z.array(z.string().max(64)).max(20).optional(),
-  inputData: z.record(z.unknown()),
-  expectedOutput: z.record(z.unknown()),
-  tolerances: z.record(z.object({
+  inputData: z.record(z.string(), z.unknown()),
+  expectedOutput: z.record(z.string(), z.unknown()),
+  tolerances: z.record(z.string(), z.object({
     min: z.number().optional(),
     max: z.number().optional(),
   })).optional(),
@@ -273,7 +273,7 @@ const goldenSampleSchema = z.object({
 const evalRunSchema = z.object({
   samples: z.array(z.object({
     goldenSampleId: z.string().uuid(),
-    actualOutput: z.record(z.unknown()),
+    actualOutput: z.record(z.string(), z.unknown()),
   })).min(1).max(100),
 }).strict();
 
@@ -314,7 +314,7 @@ router.get(
   "/eval-runs/:runId",
   internalAuth,
   asyncHandler(async (req: Request, res: Response) => {
-    const { runId } = req.params;
+    const runId = req.params.runId as string;
     const results = await goldenDatasetService.getEvalRun(runId);
     res.json({ success: true, data: results });
   }),

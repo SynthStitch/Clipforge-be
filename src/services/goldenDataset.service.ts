@@ -1,4 +1,5 @@
 import prisma from "../config/database";
+import { Prisma } from "@prisma/client";
 import { randomUUID } from "crypto";
 
 // -----------------------------------------------------------------------
@@ -33,9 +34,9 @@ export async function createGoldenSample(data: {
       label: data.label,
       difficulty: data.difficulty ?? "medium",
       tags: data.tags ?? [],
-      inputData: data.inputData,
-      expectedOutput: data.expectedOutput,
-      tolerances: data.tolerances ?? undefined,
+      inputData: data.inputData as Prisma.InputJsonValue,
+      expectedOutput: data.expectedOutput as Prisma.InputJsonValue,
+      tolerances: (data.tolerances ?? undefined) as Prisma.InputJsonValue | undefined,
       sourceRunId: data.sourceRunId ?? null,
       addedBy: data.addedBy ?? "system",
     },
@@ -147,9 +148,9 @@ export async function runEval(
       data: {
         goldenSampleId: sample.goldenSampleId,
         runId,
-        actualOutput: sample.actualOutput,
+        actualOutput: sample.actualOutput as Prisma.InputJsonValue,
         passed: overallPassed,
-        scores,
+        scores: scores as Prisma.InputJsonValue,
         failReasons,
       },
     });
