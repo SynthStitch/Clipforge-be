@@ -68,6 +68,11 @@ export async function upsertNicheIntelligence(payload: Record<string, unknown>) 
 }
 
 export async function getLatestNiches({ page = 1, limit = 20 }: NicheQueryOptions) {
+  const [countResult] = await prisma.$queryRawUnsafe<[{ count: bigint }]>(
+    `SELECT COUNT(*) as count FROM (SELECT DISTINCT ON (niche_name) id FROM niche_intelligence ORDER BY niche_name, scan_date DESC, created_at DESC) sub`,
+  );
+  const total = Number(countResult.count);
+
   const rows = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
     `
       SELECT DISTINCT ON (niche_name) *
@@ -79,7 +84,15 @@ export async function getLatestNiches({ page = 1, limit = 20 }: NicheQueryOption
     (page - 1) * limit,
   );
 
-  return rows;
+  return {
+    data: rows,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
 }
 
 export async function getNicheByName(nicheName: string) {
