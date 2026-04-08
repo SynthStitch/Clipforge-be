@@ -10,3 +10,17 @@ services:
     environment:
       PORT: 4000
       NODE_ENV: production
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama
+    container_name: clipforge-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  ollama_data:
