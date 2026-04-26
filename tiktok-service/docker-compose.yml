@@ -1,0 +1,14 @@
+services:
+  clipforge-tiktok:
+    build: .
+    container_name: clipforge-tiktok
+    restart: unless-stopped
+    ports:
+      - "8100:8100"
+    env_file:
+      - .env
+    volumes:
+      - tiktok_data:/app/data
+
+volumes:
+  tiktok_data:
