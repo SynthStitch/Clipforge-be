@@ -19,7 +19,7 @@ Orchestration handled by n8n workflows hosted at `y-3.online`.
 | 888 | n8n | n8n workflow engine |
 
 **PostgreSQL (CT 103)**
-- Host: `192.168.86.246:5432`
+- Host: `10.8.8.147:5432`
 - Database: `clipforge`
 - User: `clipforge`
 - Schema applied via `prisma db push` + `scripts/apply-optimizations.mjs`
@@ -60,15 +60,16 @@ Three n8n workflows powered by Nimble API scraping. All use `$env` variables (OS
 | ClipForge Video Transcriber v1 | `ogYYOtjfdTZoQ7XI` | Webhook | `POST /internal/video-transcripts` |
 | ClipForge Niche Discovery & Desire Scoring v1 | `3A6EGhLMlwpT7Lqc` | Weekly cron Mon 5am CST | `POST /internal/niche-discoveries` |
 
-**n8n env vars required on CT 888** (set in docker-compose.yml or n8n process env):
+**n8n env vars required on CT 888** (file: `/opt/n8n.env`):
 ```
 NIMBLE_API_KEY=
 DEEPSEEK_API_KEY=
 CLIPFORGE_SHEET_ID=https://docs.google.com/spreadsheets/d/YOUR_ID/edit
-CLIPFORGE_BACKEND_URL=http://192.168.86.X:4000
+CLIPFORGE_BACKEND_URL=http://10.8.8.167:4000
 INTERNAL_API_KEY=<must match backend .env>
 RESEND_API_KEY=
 ALERT_EMAIL=
+TIKTOK_SERVICE_URL=http://10.8.8.167:8100
 ```
 
 **Google Sheet structure required:**
@@ -157,22 +158,75 @@ GET  /internal/eval-runs/:runId        — fetch full results of a past eval run
 
 **Note on token encryption:** Prisma stores `access_token` and `refresh_token` as `String` (TEXT). `ENCRYPTION_KEY` env var exists but encryption not yet implemented in `tiktok.service.ts`. Add at the application layer (encrypt before write, decrypt after read) if needed — not at the DB layer.
 
+### 2026-04-04
+- [x] n8n infrastructure: LXC on CT 888 at `10.8.8.189` (NOT Docker) — env vars in `/opt/n8n.env`
+- [x] Added `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` to `/opt/n8n.env` to allow `{{$env.*}}` in nodes
+- [x] Added all required env vars to `/opt/n8n.env`: NIMBLE_API_KEY, DEEPSEEK_API_KEY, CLIPFORGE_BACKEND_URL, INTERNAL_API_KEY, CLIPFORGE_SHEET_ID, RESEND_API_KEY, ALERT_EMAIL
+- [x] PostgreSQL password reset via `sudo -u postgres psql -c "ALTER USER clipforge PASSWORD '...'"` on CT 103
+- [x] Backend `.env` updated with real JWT_SECRET, ENCRYPTION_KEY, DB password — container restarted with `docker compose down && docker compose up -d`
+- [x] Google Sheets OAuth fixed: added `dtrevino2237@gmail.com` as test user in Google Cloud Console OAuth consent screen
+- [x] Google Sheet "ClipForge Data" created with tabs: Niche Watchlist, Niche Intelligence, Workflow Errors
+- [x] n8n Postgres credential updated to `10.8.8.147`, `clipforge` db/user, SSL disabled (internal LAN)
+
+**Niche Discovery workflow fixes (ID: `3A6EGhLMlwpT7Lqc`):**
+- [x] Google Trends RSS deprecated — stubbed out with Code node returning null gracefully
+- [x] `splitInBatches` v3 output order: **output 0 = Done Branch, output 1 = Loop Branch** (counterintuitive — always verify)
+- [x] Removed `Loop Over Categories` node — replaced with direct `Generate Amazon Category URLs → Scrape Amazon`
+- [x] Added `Prep DeepSeek Input` Code node — builds DeepSeek body as JS object (JSON escaping fix)
+- [x] Added `Prep Desire Score Input` Code node — same pattern, between Wait (TikTok Rate Limit) and Score Desire-Pull
+- [x] `Score Desire-Pull (DeepSeek)` — body set to `={{$json.body}}`, `onError: continueRegularOutput`
+- [x] `Calculate Convertibility` — switched from `runOnceForEachItem` to `runOnceForAllItems` (fixed "json property isn't an object" error)
+- [x] `Add to Niche Watchlist` — switched from `defineBelow` to `autoMapInputData` (fixed "Could not get parameter columns.schema" error)
+- [x] `Sync Discovery to DB` — body changed from `={{JSON.stringify($json)}}` to `={{$json}}`
+- [x] All Google Sheets nodes: sheet mode → `"name"` (not `"list"` — `"list"` can't resolve env var URLs)
+- [x] `Read Existing Watchlist`: `alwaysOutputData: true`
+- [x] Fixed `Loop Over New Niches` output 1 → Scrape Amazon Reviews (was output 0/Done)
+- [x] Multi-source: Generate node now outputs 20 URLs (6 Amazon Movers, 6 Amazon Bestsellers, 5 TikTok Shop, 3 Reddit)
+- [x] `Prep DeepSeek Input` auto-detects source from Nimble response URL + loops ALL items (was `$input.first()` — only processed first item)
+- [x] `Parse Niche Classifications` matches categories by index from Prep output + loops ALL items
+- [x] Backend `nicheDiscoverySchema` — added missing fields: source_product_url, asin, impulse_trigger, social_proof_score, velocity_score, is_gold, discovered_at
+- [x] End-to-end confirmed: niches in Google Sheet + PostgreSQL `niche_discoveries` table
+- [ ] **PENDING**: TikTok Shop and Reddit sources return no niches — Nimble may return empty parsed entities. Need to inspect Nimble response for those URLs.
+- [ ] **PENDING**: Empty row with no niche_name slipping through to sheet — add guard in Aggregate/Filter
+
+**Niche Intelligence workflow fixes (ID: `wOOLIdyeofjoES2o`):**
+- [x] `Read Niche Watchlist`: sheet mode → `"name"`, `alwaysOutputData: true`
+- [x] `Log to Niche Intelligence Sheet`: sheet mode → `"name"`, `autoMapInputData`
+- [x] `Log Error to Sheet`: same fixes
+- [x] `Loop Over Niches`: output 1 → Scrape Hashtag (was output 0/Done)
+- [x] `Sync to PostFlow DB`: body → `={{$json}}`
+- [x] Workflow runs end-to-end, logs to Niche Intelligence sheet tab
+- [ ] **PENDING**: All saturation metrics are 0 — `Calculate Saturation Score` field paths are placeholders (`hp.video_count`, `sp.product_count`) that don't match actual Nimble TikTok response structure
+
+### 2026-04-26
+- [x] Backend `.env` n8n webhook URLs fixed: `localhost:5678` → `https://y-3.online` for both CLIPFORGE_* and N8N_* vars
+- [x] `INTERNAL_API_KEY` rotated to real secret, synced between backend `.env` and `/opt/n8n.env` on CT 888
+- [x] TikTok Data Service deployed to CT 106 (`~/Clipforge-be/tiktok-service/`), port 8100
+- [x] `TIKTOK_SERVICE_URL=http://10.8.8.167:8100` added to `/opt/n8n.env` on CT 888
+- [x] DNS fix: added `dns: [8.8.8.8, 8.8.4.4]` to tiktok-service docker-compose (CT 106 host has Tailscale-only DNS)
+- [x] CT 106 DNS fixed: `echo "nameserver 8.8.8.8" >> /etc/resolv.conf` (reverts on reboot — permanent fix: `pct set 106 --nameserver 8.8.8.8` from PVE host)
+
 ---
 
 ## Next Steps
 
-### Immediate — Nimble test run
+### Immediate — Fix multi-source + saturation scoring
 
-1. **Set env vars on CT 888** — add to n8n's docker-compose.yml and restart (see env vars table above)
-2. **Assign Gemini credential** in n8n UI to the Video Transcriber workflow
-3. **Populate Niche Watchlist sheet** with at least 1 test row
-4. **Confirm backend reachable from CT 888** — backend is on CT 106 (`10.8.8.167`), n8n is on CT 888; `CLIPFORGE_BACKEND_URL=http://10.8.8.167:4000`
-5. **Manually trigger** ClipForge Niche Intelligence v1 → inspect `Calculate Saturation Score` output to confirm Nimble field paths
-6. **After first good run** → call `POST /internal/golden-samples` to save that output as the first golden record
+1. **Debug TikTok/Reddit Nimble responses** — inspect what Nimble actually returns for TikTok Shop search and Reddit URLs. Check if `parsing.entities` has data or if we need different extraction.
+2. **Fix Niche Intelligence saturation field paths** — map `Calculate Saturation Score` to actual Nimble TikTok response fields
+3. **Filter empty niches** — add guard in Aggregate All Niches / Filter to exclude rows without niche_name
+4. **Save first golden sample** after confirmed multi-source run
+5. **Assign Gemini credential** in n8n UI to Video Transcriber workflow
 
-### Phase 3 — TikTok Data Service
+### Phase 3 — TikTok Data Service ✅ DEPLOYED
 
-Python/FastAPI service on CT 106 (Docker host), port 8100. Required by workflows 5, 6, 7, 9. Not yet built.
+Python/FastAPI + Playwright/Chromium service on CT 106, port 8100. Running at `http://10.8.8.167:8100`.
+- Files: `~/Clipforge-be/tiktok-service/` on CT 106
+- Env: `~/Clipforge-be/tiktok-service/.env` (gitignored — contains `TIKTOK_MS_TOKENS`)
+- Restart: `cd ~/Clipforge-be/tiktok-service && docker compose restart`
+- Rebuild: `docker compose down && docker compose up -d --build`
+- **Note:** Uses a burner TikTok account msToken. If banned, create new burner, grab fresh msToken from DevTools (Application → Cookies → `.tiktok.com` → `msToken`), update `.env`, restart.
+- DNS fix required: `dns: [8.8.8.8, 8.8.4.4]` set in docker-compose.yml (CT 106 host only has Tailscale DNS)
 
 ### Asset Generation APIs
 
@@ -185,9 +239,7 @@ Python/FastAPI service on CT 106 (Docker host), port 8100. Required by workflows
 
 ### Frontend → Backend Integration
 
-Every page currently uses mock data from `src/app/lib/data.ts`. Priority order:
-
-1. **Auth** — real JWT login/register (`POST /api/auth/login`, `/register`)
+1. ~~**Auth**~~ ✅ Done — mock bypass removed, real JWT login/`/auth/me` validation on mount
 2. **Dashboard** — `GET /api/dashboard`
 3. **Videos** — `GET /api/videos`
 4. **Insights** — `GET /api/insights`
