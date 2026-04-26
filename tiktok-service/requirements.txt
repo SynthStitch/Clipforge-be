@@ -1,5 +1,4 @@
 fastapi>=0.104.0
 uvicorn>=0.24.0
 TikTokApi>=7.3.0
-proxyproviders>=1.0.0
 slowapi>=0.1.9
