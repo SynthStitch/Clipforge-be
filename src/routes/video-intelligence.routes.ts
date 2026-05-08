@@ -73,7 +73,7 @@ const instagramUrlSchema = z.object({
       z
         .string()
         .url()
-        .refine((u) => u.includes("instagram.com"), "Must be an Instagram URL"),
+        .refine((u) => u.includes("instagram.com") || u.includes("facebook.com"), "Must be an Instagram or Facebook URL"),
     )
     .min(1)
     .max(10),
