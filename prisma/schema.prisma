@@ -358,11 +358,47 @@ model VideoTranscript {
   createdAt                DateTime           @default(now()) @map("created_at")
   updatedAt                DateTime           @updatedAt @map("updated_at")
 
+  label                    TranscriptLabel?
+
   @@index([niche])
   @@index([hookType])
   @@index([scriptStructure])
   @@index([analyzedAt(sort: Desc)])
   @@map("video_transcripts")
+}
+
+model TranscriptLabel {
+  id                      String          @id @default(uuid()) @db.Uuid
+  videoTranscriptId       String          @unique @map("video_transcript_id") @db.Uuid
+  videoTranscript         VideoTranscript @relation(fields: [videoTranscriptId], references: [id], onDelete: Cascade)
+
+  hookType                String?         @map("hook_type")
+  hookScore               Int?            @map("hook_score")
+  structureCompleteness   Decimal?        @map("structure_completeness") @db.Decimal(4, 3)
+  productRevealTiming     String?         @map("product_reveal_timing")
+  hasEnemyFraming         Boolean         @default(false) @map("has_enemy_framing")
+  hasObjectionHandling    Boolean         @default(false) @map("has_objection_handling")
+  hasVisionPainting       Boolean         @default(false) @map("has_vision_painting")
+  hasBrandDifferentiation Boolean         @default(false) @map("has_brand_differentiation")
+  emotionalArc            String?         @map("emotional_arc")
+  overallPersuasionScore  Decimal?        @map("overall_persuasion_score") @db.Decimal(4, 1)
+  repurposabilityScore    Int?            @map("repurposability_score")
+  viralityTier            String?         @map("virality_tier")
+  views                   BigInt?
+  likes                   BigInt?
+  comments                BigInt?
+  shares                  BigInt?
+  segments                Json?
+  labelerNotes            String?         @map("labeler_notes")
+  labeledBy               String?         @map("labeled_by")
+  labeledAt               DateTime        @default(now()) @map("labeled_at")
+  reviewedAt              DateTime?       @map("reviewed_at")
+  createdAt               DateTime        @default(now()) @map("created_at")
+  updatedAt               DateTime        @updatedAt @map("updated_at")
+
+  @@index([viralityTier])
+  @@index([overallPersuasionScore(sort: Desc)])
+  @@map("transcript_labels")
 }
 
 model NicheDiscovery {
