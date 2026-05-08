@@ -38,17 +38,22 @@ def transcribe(req: TranscribeRequest):
         for url in req.urls:
             try:
                 output_template = str(Path(tmpdir) / "%(id)s.%(ext)s")
+                cmd = [
+                    "yt-dlp",
+                    "-x",
+                    "--audio-format", "mp3",
+                    "--audio-quality", "5",
+                    "-o", output_template,
+                    "--print", "after_move:filepath",
+                    "--no-playlist",
+                ]
+                cookies_file = os.environ.get("INSTAGRAM_COOKIES_FILE", "")
+                if cookies_file and os.path.exists(cookies_file):
+                    cmd += ["--cookies", cookies_file]
+                cmd.append(url)
+
                 dl = subprocess.run(
-                    [
-                        "yt-dlp",
-                        "-x",
-                        "--audio-format", "mp3",
-                        "--audio-quality", "5",
-                        "-o", output_template,
-                        "--print", "after_move:filepath",
-                        "--no-playlist",
-                        url,
-                    ],
+                    cmd,
                     capture_output=True,
                     text=True,
                     timeout=300,

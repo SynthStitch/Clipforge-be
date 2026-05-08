@@ -7,6 +7,10 @@ services:
       - "8200:8200"
     env_file:
       - .env
+    environment:
+      - INSTAGRAM_COOKIES_FILE=/cookies/cookies.txt
+    volumes:
+      - ./cookies.txt:/cookies/cookies.txt:ro
     dns:
       - 8.8.8.8
       - 8.8.4.4
