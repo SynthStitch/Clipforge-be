@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import prisma from "../config/database";
 
 export async function upsertVideoTranscript(payload: Record<string, unknown>) {
@@ -5,12 +6,59 @@ export async function upsertVideoTranscript(payload: Record<string, unknown>) {
 
   return prisma.videoTranscript.upsert({
     where: { videoUrl },
-    update: mapTranscriptPayload(payload),
+    update: { ...mapTranscriptPayload(payload), analyzedAt: new Date() },
     create: {
       videoUrl,
       ...mapTranscriptPayload(payload),
     },
   });
+}
+
+export async function upsertTranscriptLabel(payload: Record<string, unknown>) {
+  const videoUrl = String(payload.video_url ?? "");
+
+  const transcript = await prisma.videoTranscript.findUnique({ where: { videoUrl } });
+  if (!transcript) {
+    throw new Error(`VideoTranscript not found for url: ${videoUrl}`);
+  }
+
+  return prisma.transcriptLabel.upsert({
+    where: { videoTranscriptId: transcript.id },
+    update: mapLabelPayload(payload),
+    create: {
+      videoTranscriptId: transcript.id,
+      ...mapLabelPayload(payload),
+    },
+  });
+}
+
+function mapLabelPayload(payload: Record<string, unknown>) {
+  return {
+    hookType: toNullableString(payload.hook_type),
+    hookScore: toOptionalInt(payload.hook_score),
+    structureCompleteness: typeof payload.structure_completeness === "number" ? payload.structure_completeness : null,
+    productRevealTiming: toNullableString(payload.product_reveal_timing),
+    hasEnemyFraming: Boolean(payload.has_enemy_framing ?? false),
+    hasObjectionHandling: Boolean(payload.has_objection_handling ?? false),
+    hasVisionPainting: Boolean(payload.has_vision_painting ?? false),
+    hasBrandDifferentiation: Boolean(payload.has_brand_differentiation ?? false),
+    emotionalArc: toNullableString(payload.emotional_arc),
+    overallPersuasionScore: typeof payload.overall_persuasion_score === "number" ? payload.overall_persuasion_score : null,
+    repurposabilityScore: toOptionalInt(payload.repurposability_score),
+    viralityTier: toNullableString(payload.virality_tier),
+    views: typeof payload.views === "number" ? BigInt(payload.views) : null,
+    likes: typeof payload.likes === "number" ? BigInt(payload.likes) : null,
+    comments: typeof payload.comments === "number" ? BigInt(payload.comments) : null,
+    shares: typeof payload.shares === "number" ? BigInt(payload.shares) : null,
+    segments: Array.isArray(payload.segments) ? (payload.segments as Prisma.InputJsonValue) : Prisma.DbNull,
+    labelerNotes: toNullableString(payload.labeler_notes),
+    labeledBy: toNullableString(payload.labeled_by),
+  };
+}
+
+function toOptionalInt(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.round(value);
+  return null;
 }
 
 export async function getVideoTranscripts(params: { niche?: string; page?: number; limit?: number }) {
@@ -26,6 +74,10 @@ export async function getVideoTranscripts(params: { niche?: string; page?: numbe
 
 export async function getVideoTranscriptById(id: string) {
   return prisma.videoTranscript.findUnique({ where: { id } });
+}
+
+export async function getTranscriptLabel(transcriptId: string) {
+  return prisma.transcriptLabel.findUnique({ where: { videoTranscriptId: transcriptId } });
 }
 
 export async function getHookPatterns(type?: string) {
