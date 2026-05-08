@@ -1,0 +1,12 @@
+services:
+  clipforge-instagram:
+    build: .
+    container_name: clipforge-instagram
+    restart: unless-stopped
+    ports:
+      - "8200:8200"
+    env_file:
+      - .env
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4

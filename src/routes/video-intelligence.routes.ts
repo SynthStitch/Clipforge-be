@@ -85,7 +85,7 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const { urls } = instagramUrlSchema.parse(req.body);
 
-    if (!env.n8nInstagramTranscriberWebhook) {
+    if (!env.instagramTranscriberUrl) {
       res.status(503).json({ error: "Instagram transcriber not configured" });
       return;
     }
@@ -94,19 +94,19 @@ router.post(
     const timeout = setTimeout(() => controller.abort(), 900_000);
 
     try {
-      const n8nRes = await fetch(env.n8nInstagramTranscriberWebhook, {
+      const svcRes = await fetch(`${env.instagramTranscriberUrl}/transcribe`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ urls }),
         signal: controller.signal,
       });
 
-      if (!n8nRes.ok) {
+      if (!svcRes.ok) {
         res.status(502).json({ error: "Transcription service unavailable" });
         return;
       }
 
-      const data = await n8nRes.json();
+      const data = await svcRes.json();
       res.json(data);
     } finally {
       clearTimeout(timeout);
