@@ -10,6 +10,8 @@ const assetGenerationWebhook =
   process.env.CLIPFORGE_ASSET_GENERATION_WEBHOOK ??
   process.env.N8N_ASSET_GENERATION_WEBHOOK ??
   "";
+const instagramTranscriberWebhook =
+  process.env.N8N_INSTAGRAM_TRANSCRIBER_WEBHOOK ?? "";
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
@@ -53,5 +55,6 @@ export const env = {
   n8nCreatorIntelligenceWebhook: creatorIntelligenceWebhook,
   n8nAssetGenerationWebhook: assetGenerationWebhook,
   n8nWebhookSecret: parsed.data.N8N_WEBHOOK_SECRET,
+  n8nInstagramTranscriberWebhook: instagramTranscriberWebhook,
   frontendUrl: parsed.data.FRONTEND_URL,
 } as const;

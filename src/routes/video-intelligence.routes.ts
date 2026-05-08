@@ -1,7 +1,9 @@
 import { Request, Response, Router } from "express";
+import { z } from "zod";
 import { asyncHandler } from "../lib/asyncHandler";
 import { firstQueryValue } from "../lib/request";
 import { authenticate } from "../middleware/auth";
+import { env } from "../config/env";
 import * as transcriptService from "../services/transcript.service";
 
 const router = Router();
@@ -49,6 +51,66 @@ router.get(
       return;
     }
     res.json(data);
+  }),
+);
+
+router.get(
+  "/:id/label",
+  authenticate,
+  asyncHandler(async (req: Request, res: Response) => {
+    const data = await transcriptService.getTranscriptLabel(String(req.params.id));
+    if (!data) {
+      res.status(404).json({ error: "No label found for this transcript" });
+      return;
+    }
+    res.json(data);
+  }),
+);
+
+const instagramUrlSchema = z.object({
+  urls: z
+    .array(
+      z
+        .string()
+        .url()
+        .refine((u) => u.includes("instagram.com"), "Must be an Instagram URL"),
+    )
+    .min(1)
+    .max(10),
+});
+
+router.post(
+  "/instagram",
+  authenticate,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { urls } = instagramUrlSchema.parse(req.body);
+
+    if (!env.n8nInstagramTranscriberWebhook) {
+      res.status(503).json({ error: "Instagram transcriber not configured" });
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 900_000);
+
+    try {
+      const n8nRes = await fetch(env.n8nInstagramTranscriberWebhook, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ urls }),
+        signal: controller.signal,
+      });
+
+      if (!n8nRes.ok) {
+        res.status(502).json({ error: "Transcription service unavailable" });
+        return;
+      }
+
+      const data = await n8nRes.json();
+      res.json(data);
+    } finally {
+      clearTimeout(timeout);
+    }
   }),
 );
 
